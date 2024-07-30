@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jackpot WebSocket Client</title>
+    <body>
+        <div id="button">hey</div>
+    </body>
+    <script>
+        let socket;
+
+        function connect() {
+            console.log(localStorage.getItem('token'));
+            // Replace 'ws://localhost:8080/jackpot' with your actual WebSocket endpoint
+            socket = new WebSocket(`ws://localhost:8081/ws/chat?token=${localStorage.getItem('token')}`);
+            socket.onopen = function() {
+                console.log('Connected to the server');
+                // Send a message to the server (if needed)
+            };
+
+            socket.onmessage = function(event) {
+                // Handle incoming messages
+                const data = JSON.parse(event.data);
+                console.log('Message from server:', data);
+                // You can update the UI or process the data as needed
+            };
+
+            socket.onclose = function(event) {
+                console.log('Disconnected from the server', event);
+            };
+
+            socket.onerror = function(error) {
+                console.error('WebSocket error:', error);
+            };
+
+
+            document.getElementById('button').addEventListener('click',function(e){
+                socket.send(JSON.stringify({  deposit: 10 }));
+            })
+        }
+
+        // Call connect when the page is loaded
+        window.onload = connect;
+    </script>
+</head>
+<body>
+    <h1>Jackpot WebSocket Client</h1>
+    <div id="messages"></div>
+</body>
+</html>
