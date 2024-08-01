@@ -11,11 +11,13 @@ mod schema;
 mod validation;
 mod websockets;
 use actix::SyncArbiter;
+use actix_cors::Cors;
 use db_utils::{get_db_pool, AppState, DbActor};
 use dotenv::dotenv;
+use handlers::websocket::{chat::chat_server::ChatServer, jackpot::jackpot_server::JackpotServer};
 use std::env;
-
-use actix_web::{web::Data, App, HttpServer};
+use actix::Actor;
+use actix_web::{http::header, web::Data, App, HttpServer};
 use routes::init_routes;
 
 #[actix_web::main]
@@ -24,8 +26,21 @@ async fn main() -> std::io::Result<()> {
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL cannot be empty (env)");
     let pool = get_db_pool(&database_url);
     let db_addr = SyncArbiter::start(5, move || DbActor(pool.clone()));
+    let chat_server = ChatServer::new().start();
+    let jackpot_server = JackpotServer::new().start();
+
     HttpServer::new(move || {
         App::new()
+            .wrap(
+                Cors::default()
+                .allowed_origin("http://127.0.0.1:5500")
+                .allowed_methods(vec!["GET", "POST", "PUT", "DELETE"])
+                .allowed_headers(vec![header::AUTHORIZATION, header::ACCEPT, header::CONTENT_TYPE])
+                .supports_credentials()
+                .max_age(3600)
+            )
+            .app_data(Data::new(jackpot_server.clone()))
+            .app_data(Data::new(chat_server.clone()))
             .app_data(Data::new(AppState {
                 db: db_addr.clone(),
             }))

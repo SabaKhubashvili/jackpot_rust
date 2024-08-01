@@ -1,4 +1,7 @@
-use actix::{clock::Instant, Addr};
+
+use std::time::Instant;
+
+use actix::Addr;
 use actix_web::{web::{Data, Payload}, HttpRequest, HttpResponse, Responder};
 use actix_web_actors::ws;
 use chat_server::ChatServer;
@@ -16,7 +19,7 @@ pub async fn handle_chat_ws(
     let rand = rand::thread_rng().gen_range(1..1000);
     let res = ws::start(
         ChatWs {
-            user_id: rand,  // Make sure this is dynamically set if required
+            user_id: rand,
             hb: Instant::now(),
             addr: chat_server.get_ref().clone(),
         },

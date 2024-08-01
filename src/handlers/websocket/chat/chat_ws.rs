@@ -1,36 +1,36 @@
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-use actix::{Handler, StreamHandler};
-use actix::{clock::Instant, Actor, Addr};
+use actix::Addr;
 use actix_web_actors::ws;
 
-use super::chat_server::{ChatServer, ClientMessage, Connect};
-use actix::AsyncContext;
-use actix::ActorContext;
 
-pub struct ChatWs{
-    pub user_id:i32,
+use super::chat_server::{ChatServer, ClientMessage, Connect, Disconnect};
+use actix::prelude::*;
+pub struct ChatWs {
+    pub user_id: i32,
+    pub hb: Instant,
     pub addr: Addr<ChatServer>,
-    pub hb: Instant
 }
 
-
-impl Actor for ChatWs{
+impl Actor for ChatWs {
     type Context = ws::WebsocketContext<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        self.hb = Instant::now();
         self.hb(ctx);
-        self.addr.do_send(Connect{
-            user_id:self.user_id.clone(),
-            addr: ctx.address().recipient()
+        self.addr.do_send(Connect {
+            id: self.user_id,
+            addr: ctx.address().recipient(),
         })
+    }
 
+    fn stopped(&mut self, _ctx: &mut Self::Context) {
+        self.addr.do_send(Disconnect { id: self.user_id })
     }
 }
+
 impl ChatWs {
-    fn hb(&mut self, ctx: &mut ws::WebsocketContext<Self>) {
-        ctx.run_interval(Duration::from_secs(5), |act, ctx| {
+    fn hb(&self, ctx: &mut ws::WebsocketContext<Self>) {
+        ctx.run_interval(Duration::new(5, 0), |act, ctx| {
             if Instant::now().duration_since(act.hb) > Duration::from_secs(10) {
                 ctx.stop();
                 return;
@@ -42,42 +42,45 @@ impl ChatWs {
 }
 
 impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ChatWs {
-    fn handle(&mut self, item: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
-        match item {
+    fn handle(&mut self, message: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
+        match message {
             Ok(ws::Message::Ping(msg)) => {
-                ctx.pong(&msg);
                 self.hb = Instant::now();
-            },
+                ctx.pong(&msg);
+            }
             Ok(ws::Message::Pong(_)) => {
                 self.hb = Instant::now();
-            },
+            }
             Ok(ws::Message::Text(msg)) => {
-                println!("{:?}", msg);
-                let msg = ClientMessage {
-                    sender_id: self.user_id,
-                    message: msg.to_string(),
+                let payload = ClientMessage {
+                    id: self.user_id,
+                    msg: msg.to_string()
                 };
-                self.addr.do_send(msg);
-            },
+                self.addr.do_send(payload);
+            }
             Err(err) => {
-                eprintln!("Error: {}", err);
+                eprintln!("WebSocket error: {:?}", err);
                 ctx.stop();
-            },
-            _ => ()
-        }
+            }
+            _ => (),
+        };
     }
 }
 
-
-impl Handler<ClientMessage> for ChatWs{
+impl Handler<ClientMessage> for ChatWs {
     type Result = ();
 
-    fn handle(&mut self, msg: ClientMessage, ctx: &mut Self::Context) -> Self::Result {
-        if let Ok(serialized_msg) = serde_json::to_string(&msg){
-            ctx.text(serialized_msg);
-        }else{
-            eprintln!("Failed to serialize message");
-            return;
+    fn handle(&mut self, msg: ClientMessage, ctx: &mut Self::Context) {
+        if let Ok(json_msg) = serde_json::to_string(&msg) {
+            ctx.text(json_msg);
+        } else {
+            eprintln!("Failed to serialize message to JSON");
         }
     }
 }
+
+
+
+
+
+
