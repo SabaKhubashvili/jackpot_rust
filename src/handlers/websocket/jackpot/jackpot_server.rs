@@ -1,7 +1,7 @@
-use std::{collections::HashMap, time::Duration};
 use actix::{Actor, Addr, AsyncContext, Context, Handler, Message, Recipient};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
+use std::{collections::HashMap, time::Duration};
 
 use crate::db_utils::DbActor;
 
@@ -30,10 +30,18 @@ impl JackpotServer {
     }
 
     pub fn notify_winner(&self, player: Player) {
-        let full_amount = self.game_session.as_ref()
-            .map(|session| session.players.values().map(|player| player.deposit).sum::<f64>())
+        let full_amount = self
+            .game_session
+            .as_ref()
+            .map(|session| {
+                session
+                    .players
+                    .values()
+                    .map(|player| player.deposit)
+                    .sum::<f64>()
+            })
             .unwrap_or(0.0);
-        
+
         let winner_message = ClientMessage {
             msg: format!("{} has won the jackpot of {}", player.name, full_amount),
             variant: "winner".into(),
@@ -46,7 +54,10 @@ impl JackpotServer {
 
     pub fn notify_player_join(&self, player: &Player) {
         let player_join_message = ClientMessage {
-            msg: format!("{} has joined the game with a deposit of {}", player.name, player.deposit),
+            msg: format!(
+                "{} has joined the game with a deposit of {}",
+                player.name, player.deposit
+            ),
             variant: "player_join".into(),
         };
 
@@ -76,7 +87,7 @@ impl Actor for JackpotServer {
 #[rtype(result = "()")]
 pub struct Deposit {
     pub player: Player,
-    pub db_pool: Addr<DbActor>
+    pub db_pool: Addr<DbActor>,
 }
 
 impl Handler<Deposit> for JackpotServer {
@@ -93,15 +104,15 @@ impl Handler<Deposit> for JackpotServer {
 
         self.notify_player_join(&msg.player);
 
-        msg.db_pool.send(RecordDeposit{
+        msg.db_pool.send(RecordDeposit {
             user_id: msg.player.user_id,
-            amount: msg.player.deposit
+            amount: msg.player.deposit,
         });
 
         if let Some(ref mut session) = self.game_session {
             if session.players.len() >= 2 && !session.timer_started {
                 session.timer_started = true;
-                self.notify_timer_start(ctx);   
+                self.notify_timer_start(ctx);
                 ctx.run_later(Duration::from_secs(15), |act, _ctx| {
                     if let Some(ref mut session) = act.game_session {
                         if let Some(winner) = session.start_game() {
@@ -168,7 +179,7 @@ pub struct Player {
     pub deposit: f64,
 }
 
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug)]
 pub struct GameSession {
     pub players: HashMap<i32, Player>,
     pub timer_started: bool,
@@ -202,14 +213,11 @@ impl GameSession {
     }
 }
 
-
-
-
 #[derive(Message)]
-#[rtype (result="()")]
-pub struct RecordDeposit{
-    pub user_id:i32,
-    pub amount:f64,
+#[rtype(result = "()")]
+pub struct RecordDeposit {
+    pub user_id: i32,
+    pub amount: f64,
 }
 
 impl Handler<RecordDeposit> for DbActor {
@@ -217,6 +225,5 @@ impl Handler<RecordDeposit> for DbActor {
 
     fn handle(&mut self, msg: RecordDeposit, ctx: &mut Self::Context) -> Self::Result {
         let conn = self.0.get().expect("Failed to connect");
-        
     }
 }

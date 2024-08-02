@@ -3,7 +3,6 @@ use std::time::{Duration, Instant};
 use actix::Addr;
 use actix_web_actors::ws;
 
-
 use super::chat_server::{ChatServer, ClientMessage, Connect, Disconnect};
 use actix::prelude::*;
 pub struct ChatWs {
@@ -54,7 +53,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ChatWs {
             Ok(ws::Message::Text(msg)) => {
                 let payload = ClientMessage {
                     id: self.user_id,
-                    msg: msg.to_string()
+                    msg: msg.to_string(),
                 };
                 self.addr.do_send(payload);
             }
@@ -78,9 +77,3 @@ impl Handler<ClientMessage> for ChatWs {
         }
     }
 }
-
-
-
-
-
-

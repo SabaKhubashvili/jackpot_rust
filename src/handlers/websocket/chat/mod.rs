@@ -1,15 +1,17 @@
-
 use std::time::Instant;
 
 use actix::Addr;
-use actix_web::{web::{Data, Payload}, HttpRequest, HttpResponse, Responder};
+use actix_web::{
+    web::{Data, Payload},
+    HttpRequest, HttpResponse, Responder,
+};
 use actix_web_actors::ws;
 use chat_server::ChatServer;
 use chat_ws::ChatWs;
 use rand::Rng;
 
-pub mod chat_ws;
 pub mod chat_server;
+pub mod chat_ws;
 
 pub async fn handle_chat_ws(
     chat_server: Data<Addr<ChatServer>>,

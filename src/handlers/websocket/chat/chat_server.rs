@@ -45,7 +45,7 @@ impl Handler<Disconnect> for ChatServer {
 #[rtype(result = "()")]
 pub struct ClientMessage {
     pub id: i32,
-    pub msg: String
+    pub msg: String,
 }
 
 impl Handler<ClientMessage> for ChatServer {
@@ -56,6 +56,3 @@ impl Handler<ClientMessage> for ChatServer {
         }
     }
 }
-
-
-

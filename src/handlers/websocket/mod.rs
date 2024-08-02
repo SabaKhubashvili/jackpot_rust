@@ -1,3 +1,3 @@
 pub mod chat;
-pub mod jackpot;
 pub mod crash;
+pub mod jackpot;

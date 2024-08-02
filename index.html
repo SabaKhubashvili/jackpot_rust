@@ -13,7 +13,7 @@
         function connectWebSocket() {
             const token = localStorage.getItem('token');
 
-            let wsUrl = `ws://localhost:8081/ws/jackpot`;
+            let wsUrl = `ws://localhost:8081/ws/crash`;
 
             if (token){
                 wsUrl += `?token=${token}`

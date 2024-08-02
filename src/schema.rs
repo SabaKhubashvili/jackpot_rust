@@ -33,8 +33,4 @@ diesel::table! {
 
 diesel::joinable!(jackpotplayers -> users (player_id));
 
-diesel::allow_tables_to_appear_in_same_query!(
-    jackpotgames,
-    jackpotplayers,
-    users,
-);
+diesel::allow_tables_to_appear_in_same_query!(jackpotgames, jackpotplayers, users,);
