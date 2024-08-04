@@ -38,11 +38,13 @@
                 console.log('WebSocket connection closed');
             };
 
-            document.getElementById("deposit").onclick = () =>{
-                ws.send(JSON.stringify({
-                amount:150
-            }))
-            }
+            document.getElementById("deposit").onclick = () => {
+    ws.send(JSON.stringify({
+        action: "deposit",
+        amount:150
+    }));
+};
+
         }
 
         // Call connect when the page is loaded

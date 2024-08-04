@@ -3,8 +3,9 @@ use std::time::{Duration, Instant};
 use actix::StreamHandler;
 use actix::{Actor, Addr, Handler};
 use actix_web_actors::ws;
+use serde::Deserialize;
 
-use super::crash_server::{ClientMessage, Connect, CrashServer, Disconnect};
+use super::crash_server::{ClientMessage, Connect, CrashServer, DepositInCrash, Disconnect};
 use actix::ActorContext;
 use actix::AsyncContext;
 
@@ -14,6 +15,17 @@ pub struct CrashWs {
     pub addr: Addr<CrashServer>,
 }
 
+#[derive(Deserialize,Debug)]
+struct IncomingMessage {
+    action: String,
+    #[serde(flatten)]
+    payload: serde_json::Value,
+}
+#[derive(Debug, Deserialize)]
+struct DepositPayload {
+    action:String,
+    amount: f64,
+}
 impl Actor for CrashWs {
     type Context = ws::WebsocketContext<Self>;
     fn started(&mut self, ctx: &mut Self::Context) {
@@ -53,7 +65,27 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for CrashWs {
             Ok(ws::Message::Pong(_)) => {
                 self.hb = Instant::now();
             }
-            Ok(ws::Message::Text(msg)) => {}
+            Ok(ws::Message::Text(msg)) => {
+                if let Ok(deserialized_msg) = serde_json::from_str::<IncomingMessage>(&msg) {
+                    println!("{:?}", deserialized_msg);
+                    match deserialized_msg.action.as_str() {
+                        "deposit" => {
+                            // println!("deposit");
+                            //     println!("Parsed deposit message: {:?}", deserialized_msg);
+                            //     self.addr.do_send(DepositInCrash {
+                            //         amount: deserialized_msg.amount,
+                            //         user_id: self.user_id,
+                            //     });
+                          
+                        }
+                        _ => {
+                            println!("Unknown message action: {}", deserialized_msg.action);
+                        }
+                    }
+                } else {
+                    println!("Failed to deserialize");
+                }
+            }
             Err(e) => {
                 eprintln!("Error during WebSocket message: {}", e);
                 ctx.stop();
