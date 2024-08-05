@@ -61,13 +61,17 @@ pub struct DepositInCrash{
     pub user_id: i32,
     pub amount: f64,
 }
+#[derive(Message,Deserialize)]
+#[rtype(result="()")]
+pub struct CashOut{
+    pub user_id: i32
+}
 
 impl Handler<DepositInCrash> for CrashServer{
     type Result = ();
     fn handle(&mut self, msg: DepositInCrash, ctx: &mut Self::Context) -> Self::Result {
-        println!("Entering crash");
         if let Some(game) = &self.crash_game{
-            println!("Entered crash");
+
             let addr_clone = game.clone();
             let session_clone = self.sessions.clone();
             let user_id = msg.user_id;
@@ -98,6 +102,41 @@ impl Handler<DepositInCrash> for CrashServer{
             }.into_actor(self));
         }
 
+    }
+}
+impl Handler<CashOut> for CrashServer{
+    type Result = ();
+
+    fn handle(&mut self, msg: CashOut, ctx: &mut Self::Context) -> Self::Result {
+        if let Some(game) = &self.crash_game{
+            let clone = game.clone();
+            let session_clone = self.sessions.clone();
+            ctx.spawn(async move{
+                let res = clone.send(CashOutFromCrash {user_id:msg.user_id}).await;
+                match  res {
+                    Ok(_) => {
+                        println!("Cashed out from crash game");
+                        let json = ClientMessageJson{
+                            msg_type:"success_cashout".to_string(),
+                            msg: "Cashed out successfully".to_string(),
+                        };
+                        if let Some(addr) = session_clone.get(&msg.user_id) {
+                            addr.do_send(ClientMessage::Json(json));
+                        }
+                    },
+                    Err(_) => {
+                        println!("Failed to cash out from crash game");
+                        let json = ClientMessageJson{
+                            msg_type:"failed_to_cashout".to_string(),
+                            msg: "Failed to cash out from crash game. Game is already started".to_string(),
+                        };
+                        if let Some(addr) = session_clone.get(&msg.user_id) {
+                            addr.do_send(ClientMessage::Json(json));
+                        }
+                    },
+                }
+            }.into_actor(self));
+        }
     }
 }
 impl Handler<ClientMessage> for CrashServer {
@@ -167,7 +206,11 @@ pub struct AddPlayerToCrash{
     pub user_id: i32,
     pub bet_amount: f64
 }
-
+#[derive(Message)]
+#[rtype(result="Result<(),()>")]
+pub struct CashOutFromCrash{
+    pub user_id: i32
+}
 impl Handler<AddPlayerToCrash> for CrashGame{
     type Result = Result<(),()>;
     fn handle(&mut self, msg: AddPlayerToCrash, ctx: &mut Self::Context) -> Self::Result {
@@ -179,6 +222,25 @@ impl Handler<AddPlayerToCrash> for CrashGame{
             };
             self.players.push(new_player);
             Ok(())
+        }else{
+            Err(())
+        }
+    }
+}
+impl Handler<CashOutFromCrash> for CrashGame{
+    type Result = Result<(),()>;
+    fn handle(&mut self, msg: CashOutFromCrash, _ctx: &mut Self::Context) -> Self::Result {
+        if !self.interval_active{
+            if let Some(player) = self.players.iter_mut().find(|p| p.user_id == msg.user_id){
+                if player.cashed_out == false{
+                    player.cashed_out = true;
+                    Ok(())
+                }else{
+                    Err(())
+                }
+            }else{
+                Err(())
+            }
         }else{
             Err(())
         }

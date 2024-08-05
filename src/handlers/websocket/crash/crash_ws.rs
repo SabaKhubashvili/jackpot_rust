@@ -23,7 +23,6 @@ struct IncomingMessage {
 }
 #[derive(Debug, Deserialize)]
 struct DepositPayload {
-    action:String,
     amount: f64,
 }
 impl Actor for CrashWs {
@@ -70,13 +69,12 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for CrashWs {
                     println!("{:?}", deserialized_msg);
                     match deserialized_msg.action.as_str() {
                         "deposit" => {
-                            // println!("deposit");
-                            //     println!("Parsed deposit message: {:?}", deserialized_msg);
-                            //     self.addr.do_send(DepositInCrash {
-                            //         amount: deserialized_msg.amount,
-                            //         user_id: self.user_id,
-                            //     });
-                          
+                           if let Ok(amount) = serde_json::from_value::<DepositPayload>(deserialized_msg.payload){
+                            self.addr.do_send(DepositInCrash {
+                                amount:amount.amount,
+                                user_id: self.user_id,
+                            });
+                           }
                         }
                         _ => {
                             println!("Unknown message action: {}", deserialized_msg.action);
