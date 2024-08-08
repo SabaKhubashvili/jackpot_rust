@@ -5,6 +5,8 @@ use actix::{Actor, Addr, Handler};
 use actix_web_actors::ws;
 use serde::Deserialize;
 
+use crate::handlers::websocket::crash::crash_server::CashOut;
+
 use super::crash_server::{ClientMessage, Connect, CrashServer, DepositInCrash, Disconnect};
 use actix::ActorContext;
 use actix::AsyncContext;
@@ -15,7 +17,7 @@ pub struct CrashWs {
     pub addr: Addr<CrashServer>,
 }
 
-#[derive(Deserialize,Debug)]
+#[derive(Deserialize, Debug)]
 struct IncomingMessage {
     action: String,
     #[serde(flatten)]
@@ -69,12 +71,19 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for CrashWs {
                     println!("{:?}", deserialized_msg);
                     match deserialized_msg.action.as_str() {
                         "deposit" => {
-                           if let Ok(amount) = serde_json::from_value::<DepositPayload>(deserialized_msg.payload){
-                            self.addr.do_send(DepositInCrash {
-                                amount:amount.amount,
+                            if let Ok(amount) =
+                                serde_json::from_value::<DepositPayload>(deserialized_msg.payload)
+                            {
+                                self.addr.do_send(DepositInCrash {
+                                    amount: amount.amount,
+                                    user_id: self.user_id,
+                                });
+                            }
+                        }
+                        "cashout" => {
+                            self.addr.do_send(CashOut {
                                 user_id: self.user_id,
                             });
-                           }
                         }
                         _ => {
                             println!("Unknown message action: {}", deserialized_msg.action);

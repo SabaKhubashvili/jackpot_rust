@@ -1,54 +1,63 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Jackpot WebSocket Client</title>
-</head>
-<body>
+  </head>
+  <body>
     <h1>Jackpot WebSocket Client</h1>
     <div id="messages"></div>
-    <div id="deposit">Deposit</div>
+    <div id="deposit" style>Deposit</div>
+    <div id="cashout">Cashout</div>
     <script>
-        function connectWebSocket() {
-            const token = localStorage.getItem('token');
+      function connectWebSocket() {
+        const token = localStorage.getItem("token");
 
-            let wsUrl = `ws://localhost:8081/ws/crash`;
+        let wsUrl = `ws://localhost:8081/ws/crash`;
 
-            if (token){
-                wsUrl += `?token=${token}`
-            }
-            const ws = new WebSocket(wsUrl);
-
-            ws.onopen = () => {
-                console.log('WebSocket connection established');
-            };
-
-            ws.onmessage = (message) => {
-                console.log('Message from server', message.data);
-                const messagesDiv = document.getElementById('messages');
-                messagesDiv.innerHTML += `<p>${message.data}</p>`;
-            };
-
-            ws.onerror = (error) => {
-                console.error('WebSocket error', error);
-            };
-
-            ws.onclose = () => {
-                console.log('WebSocket connection closed');
-            };
-
-            document.getElementById("deposit").onclick = () => {
-    ws.send(JSON.stringify({
-        action: "deposit",
-        amount:150
-    }));
-};
-
+        if (token) {
+          wsUrl += `?token=${token}`;
         }
+        const ws = new WebSocket(wsUrl);
 
-        // Call connect when the page is loaded
-        window.onload = connectWebSocket;
+        ws.onopen = () => {
+          console.log("WebSocket connection established");
+        };
+
+        ws.onmessage = (message) => {
+          console.log("Message from server", message.data);
+          const messagesDiv = document.getElementById("messages");
+          messagesDiv.innerHTML += `<p>${message.data}</p>`;
+        };
+
+        ws.onerror = (error) => {
+          console.error("WebSocket error", error);
+        };
+
+        ws.onclose = () => {
+          console.log("WebSocket connection closed");
+        };
+
+        document.getElementById("deposit").onclick = () => {
+          ws.send(
+            JSON.stringify({
+              action: "deposit",
+              amount: 150,
+            })
+          );
+        };
+        document.getElementById("cashout").onclick = () => {
+          ws.send(
+            JSON.stringify({
+              action: "cashout"
+            })
+          );
+        };
+      }
+
+      // Call connect when the page is loaded
+      window.onload = connectWebSocket;
     </script>
-</body>
+  </body>
 </html>
