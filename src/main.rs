@@ -16,6 +16,7 @@ use actix_cors::Cors;
 use actix_web::{http::header, web::Data, App, HttpServer};
 use db_utils::{get_db_pool, AppState, DbActor};
 use dotenv::dotenv;
+use handlers::websocket::coinflip::coinflip_server::CoinflipServer;
 use handlers::websocket::{
     chat::chat_server::ChatServer, crash::crash_server::CrashServer,
     jackpot::jackpot_server::JackpotServer,
@@ -31,8 +32,8 @@ async fn main() -> std::io::Result<()> {
     let db_addr = SyncArbiter::start(5, move || DbActor(pool.clone()));
     let chat_server = ChatServer::new().start();
     let jackpot_server = JackpotServer::new().start();
-    let crash_server = CrashServer::new().start();
-
+    // let crash_server = CrashServer::new().start();
+    let coinflip_server = CoinflipServer::new().start();
     HttpServer::new(move || {
         App::new()
             .wrap(
@@ -49,7 +50,9 @@ async fn main() -> std::io::Result<()> {
             )
             .app_data(Data::new(jackpot_server.clone()))
             .app_data(Data::new(chat_server.clone()))
-            .app_data(Data::new(crash_server.clone()))
+            // .app_data(Data::new(crash_server.clone()))
+
+            .app_data(Data::new(coinflip_server.clone()))
             .app_data(Data::new(AppState {
                 db: db_addr.clone(),
             }))

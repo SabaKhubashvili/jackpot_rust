@@ -1,23 +1,34 @@
 use std::collections::HashMap;
 
-use actix::{Actor, Context, Handler, Message, Recipient};
+use actix::{Actor, AsyncContext, Context, Handler, Message, Recipient};
 use rand::Rng;
 use serde::Serialize;
+use serde_json::json;
+
 
 //* --- Struct --- */
 pub struct CoinflipServer {
+    pub spectators: Vec<i32>,
     pub sessions: HashMap<String, CoinflipGame>,
 }
-
+impl CoinflipServer{
+    pub fn new() -> Self{
+        CoinflipServer{
+            spectators: Vec::new(),
+            sessions: HashMap::new(),
+        }
+    }
+}
+#[derive(Debug)]
 pub struct CoinflipGame {
     pub spectators: HashMap<i32,Recipient<ClientMessage>>,
     pub players: Vec<Player>,
     pub amount: f64,
 }
-#[derive(Clone)]
+#[derive(Clone,Debug)]
 pub struct Player {
     pub id: usize,
-    pub _name: String,
+    pub name: String,
     pub addr: Recipient<ClientMessage>,
 }
 #[derive(Serialize)]
@@ -44,8 +55,9 @@ pub struct Disconnect {
 #[rtype(result = "()")]
 pub enum ClientMessage {
     Text(String),
-    _Json(JsonResponse),
+    Json(JsonResponse),
 }
+
 
 #[derive(Message)]
 #[rtype(result = "()")]
@@ -54,7 +66,7 @@ pub struct AddGame {
     pub player: Player,
 }
 
-#[derive(Message)]
+#[derive(Message,Debug)]
 #[rtype(result = "()")]
 pub struct JoinGame {
     pub gameid: String,
@@ -75,17 +87,13 @@ impl Handler<Connect> for CoinflipServer {
     type Result = ();
 
     fn handle(&mut self, msg: Connect, _ctx: &mut Self::Context) -> Self::Result {
-        if let Some(game_session) = self.sessions.get_mut(&msg.session_id) {
-            game_session.spectators.insert(msg.user_id,msg.addr);
-        }
+        self.spectators.push(msg.user_id);
     }
 }
 impl Handler<Disconnect> for CoinflipServer {
     type Result = ();
     fn handle(&mut self, msg: Disconnect, _ctx: &mut Self::Context) -> Self::Result {
-        if let Some(game_session) = self.sessions.get_mut(&msg.session_id) {
-            game_session.spectators.remove(&msg.user_id);
-        }
+        self.spectators.retain(|p| *p != msg.user_id);
     }
 }
 impl Handler<ClientMessage> for CoinflipGame {
@@ -101,7 +109,7 @@ impl Handler<ClientMessage> for CoinflipGame {
                     spectator.do_send(ClientMessage::Text(val.clone()));
                 }
             }
-            ClientMessage::_Json(val) => {
+            ClientMessage::Json(val) => {
                 let json_val = serde_json::to_string(&val).unwrap();
                 for player in &self.players {
                     player.addr.do_send(ClientMessage::Text(json_val.clone()));
@@ -113,13 +121,53 @@ impl Handler<ClientMessage> for CoinflipGame {
         }
     }
 }
+impl Handler<ClientMessage> for CoinflipServer {
+    type Result = ();
 
+    fn handle(&mut self, msg: ClientMessage, _ctx: &mut Self::Context) -> Self::Result {
+        match msg {
+            ClientMessage::Text(val) => {
+                for session in self.sessions.values() {
+                    for player in &session.players {
+                        player.addr.do_send(ClientMessage::Text(val.clone()));
+                    }
+                    for spectator in session.spectators.values() {
+                        spectator.do_send(ClientMessage::Text(val.clone()));
+                    }
+                }
+            }
+            ClientMessage::Json(val) => {
+                let json_val = serde_json::to_string(&val).unwrap();
+                for session in self.sessions.values() {
+                    for player in &session.players {
+                        player.addr.do_send(ClientMessage::Text(json_val.clone()));
+                    }
+                    for spectator in session.spectators.values() {
+                        spectator.do_send(ClientMessage::Text(json_val.clone()));
+                    }
+                }
+            }
+        }
+    }
+}
 impl Handler<AddGame> for CoinflipServer {
     type Result = ();
-    fn handle(&mut self, msg: AddGame, _ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: AddGame, ctx: &mut Self::Context) -> Self::Result {
         let id = uuid::Uuid::new_v4().to_string();
-        let new_game = CoinflipGame::new(msg.amount, msg.player);
-        self.sessions.insert(id, new_game);
+        let new_game = CoinflipGame::new(msg.amount, msg.player.clone());
+        self.sessions.insert(id.clone(), new_game);
+        println!("{:?}",self.sessions);
+        ctx.address().do_send(ClientMessage::Json(JsonResponse{
+            message_type:String::from("new_game"),
+            payload: json!({
+                "game_id": id,
+                "amount": msg.amount,
+                "player": {
+                    "id": msg.player.id,
+                    "name": msg.player.name,
+                }
+            })
+        }));
     }
 }
 
@@ -127,7 +175,10 @@ impl Handler<JoinGame> for CoinflipServer {
     type Result = ();
 
     fn handle(&mut self, msg: JoinGame, _ctx: &mut Self::Context) -> Self::Result {
+        println!("{:?}",msg);
+        println!("{:?}",self.sessions);
         if let Some(game) = self.sessions.get_mut(&msg.gameid) {
+            println!("{:?}",game);
             if game.players.iter().all(|p| p.id != msg.player.id) {
                 game.players.insert(msg.player.id, msg.player);
                 println!("user joined");
@@ -158,7 +209,7 @@ impl CoinflipGame {
 
         let winner_msg = format!("You won ${:.2}!", self.amount);
         let loser_msg = "You lost. Better luck next time!".to_string();
-        let game_result_msg = format!("Player {} won ${:.2}!", winner._name, self.amount);
+        let game_result_msg = format!("Player {} won ${:.2}!", winner.name, self.amount);
 
         // Send messages to players
         winner.addr.do_send(ClientMessage::Text(winner_msg.clone()));

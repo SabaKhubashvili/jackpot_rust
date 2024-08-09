@@ -6,20 +6,21 @@
     <title>Jackpot WebSocket Client</title>
   </head>
   <body>
-    <h1>Jackpot WebSocket Client</h1>
+    <h3>Jackpot WebSocket Client</h3>
     <div id="messages"></div>
-    <div id="deposit" style>Deposit</div>
-    <div id="cashout">Cashout</div>
+    <div id="CreateGame" style>Create Game</div>
+    <div id="cashout" >Cashout</div>
     <script>
+      let ws;
       function connectWebSocket() {
         const token = localStorage.getItem("token");
 
-        let wsUrl = `ws://localhost:8081/ws/crash`;
+        let wsUrl = `ws://localhost:8081/ws/coinflip`;
 
         if (token) {
           wsUrl += `?token=${token}`;
         }
-        const ws = new WebSocket(wsUrl);
+        ws = new WebSocket(wsUrl);
 
         ws.onopen = () => {
           console.log("WebSocket connection established");
@@ -28,7 +29,16 @@
         ws.onmessage = (message) => {
           console.log("Message from server", message.data);
           const messagesDiv = document.getElementById("messages");
-          messagesDiv.innerHTML += `<p>${message.data}</p>`;
+          const response = JSON.parse(message.data);
+          console.log(response)
+          if (response.message_type === "new_game"){
+            document.getElementById("CreateGame").disabled = true;
+            messagesDiv.innerHTML += `<div>
+              <h3>Creator ${response.payload.player.name}</h3>  
+              <h3>Amount ${response.payload.amount}</h3> 
+              <button  onclick="joinGame('${response.payload.game_id}')">Join</button>
+            </div>`;
+          }
         };
 
         ws.onerror = (error) => {
@@ -39,11 +49,14 @@
           console.log("WebSocket connection closed");
         };
 
-        document.getElementById("deposit").onclick = () => {
+        document.getElementById("CreateGame").onclick = () => {
           ws.send(
             JSON.stringify({
-              action: "deposit",
-              amount: 150,
+              msg_type: "create",
+              payload: {
+                user_id:1,
+                amount:123
+              },
             })
           );
         };
@@ -55,7 +68,19 @@
           );
         };
       }
-
+      function joinGame (id) {
+        console.log("ss");
+         ws.send(
+           JSON.stringify({
+             msg_type: "join",
+             payload: {
+               user_id:1,
+               game_id:id
+             },
+           })
+         );
+       };
+      
       // Call connect when the page is loaded
       window.onload = connectWebSocket;
     </script>

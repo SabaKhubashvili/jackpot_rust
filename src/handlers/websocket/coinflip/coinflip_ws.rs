@@ -10,6 +10,7 @@ use actix_web_actors::ws;
 use serde::Deserialize;
 
 
+use super::coinflip_server::AddGame;
 use super::coinflip_server::JoinGame;
 use super::coinflip_server::Player;
 use super::coinflip_server::{CoinflipServer,Connect,ClientMessage,Disconnect};
@@ -28,17 +29,25 @@ pub struct RequestPayload{
     payload: serde_json::Value,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize,Debug)]
 pub struct JoinPayload{
     user_id:usize,
     game_id:String
 }
+
+#[derive(Deserialize)]
+pub struct CreateGamePayload{
+    user_id:usize,
+    amount:usize
+}
+
 
 
 impl Actor for CoinflipWs {
     type Context = ws::WebsocketContext<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
+        println!("User with id: {} Connecting", self.user_id);
         self.hb(ctx);
         self.addr.do_send(Connect{
             user_id: self.user_id,
@@ -63,12 +72,13 @@ impl StreamHandler<Result<ws::Message,ws::ProtocolError>> for CoinflipWs{
                     match msg_type.msg_type.as_str(){
                         "join"=>{
                             let payload = serde_json::from_value::<JoinPayload>(msg_type.payload);
+                            println!("{:?}",payload);
                             match payload{
                                 Ok(user) => {
                                 if let Some(name) = self.name.clone(){
                                     let new_player = Player{
                                         id:user.user_id,
-                                        _name: name,
+                                        name,
                                         addr: ctx.address().recipient()
                                     };
                                     self.addr.do_send(JoinGame{
@@ -84,6 +94,28 @@ impl StreamHandler<Result<ws::Message,ws::ProtocolError>> for CoinflipWs{
  
                             }
                         },
+                        "create"=>{
+                            let payload = serde_json::from_value::<CreateGamePayload>(msg_type.payload);
+                            match payload{
+                                Ok(user) => {
+                                    if let Some(name) = self.name.clone(){
+                                        let new_player = Player{
+                                            id:user.user_id,
+                                            name,
+                                            addr: ctx.address().recipient()
+                                        };
+                                        self.addr.do_send(AddGame{
+                                            player:new_player,
+                                            amount:user.amount as f64
+                                        })
+                                    }
+                                },
+                                Err(_) => {
+                                    println!("Failed to deserialize create game payload");
+                                    return;
+                                }
+                            }
+                        }
                         _=>()
                     }
                 }
@@ -127,7 +159,7 @@ impl Handler<ClientMessage> for CoinflipWs{
             ClientMessage::Text(txt)=>{
                 ctx.text(txt);
             }, 
-            ClientMessage::_Json(jsn)=>{
+            ClientMessage::Json(jsn)=>{
                 if let Ok(json_msg) = serde_json::to_string(&jsn){
                     ctx.text(json_msg);
                 }
